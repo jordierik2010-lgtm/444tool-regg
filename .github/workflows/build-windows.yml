@@ -1,0 +1,49 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: "src-tauri -> target" }
+      - name: Install frontend dependencies
+        run: npm install
+      - name: Configure public verification key
+        shell: pwsh
+        env:
+          CFG444_PUBLIC_KEY_HEX: ${{ secrets.CFG444_PUBLIC_KEY_HEX }}
+        run: |
+          $k = $env:CFG444_PUBLIC_KEY_HEX.Trim()
+          if ($k -notmatch '^[0-9a-fA-F]{64}$') {
+            Write-Error "Create repository secret CFG444_PUBLIC_KEY_HEX with the 64-character public.key from Key Manager (never private.key)."
+            exit 1
+          }
+          Set-Content -Path src-tauri/public.key -Value $k -NoNewline
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: License format tests (Key Manager)
+        run: npm run test:keys
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Build app and installer
+        run: npx tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 444CFG-TOOL-installer
+          if-no-files-found: error
+          path: src-tauri/target/release/bundle/nsis/*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 444CFG-TOOL-portable-exe
+          if-no-files-found: error
+          path: src-tauri/target/release/cfg444-tool.exe
