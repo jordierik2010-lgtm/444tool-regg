@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>444CFG KEY MANAGER</title>
+<style>
+:root{color-scheme:dark;--bg:#04060c;--panel:#090d18;--line:rgba(136,150,200,.18);--accent:#8e9de0;--accent2:#6677b8;--text:#e9ecf8;--mute:#8791b3;--ok:#7be0b0;--err:#ff9aa8;
+font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--text);padding:32px 16px;background:radial-gradient(900px 500px at 50% -10%,rgba(102,119,184,.22),transparent 70%),var(--bg)}
+.wrap{max-width:720px;margin:auto}
+header{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+header img{width:72px;height:72px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(142,157,224,.45))}
+h1{margin:0;font-size:24px;letter-spacing:.04em}h1 b{color:var(--accent)}
+.sub{font:11px Consolas,monospace;letter-spacing:.18em;color:var(--mute);text-transform:uppercase;margin-top:4px}
+.panel{background:linear-gradient(180deg,rgba(20,26,48,.7),var(--panel));border:1px solid var(--line);border-radius:14px;padding:22px;margin:14px 0;transition:border-color .2s,box-shadow .2s}
+.panel:hover{border-color:rgba(142,157,224,.38);box-shadow:0 0 30px rgba(102,119,184,.12)}
+.step{font:11px Consolas,monospace;letter-spacing:.2em;color:var(--accent);margin-bottom:6px}
+h2{margin:0 0 8px;font-size:17px}p{margin:6px 0;font-size:14px;line-height:1.5;color:#aab2d0}
+label{display:block;font:11px Consolas,monospace;letter-spacing:.14em;color:var(--mute);margin:14px 0 6px;text-transform:uppercase}
+input[type=text],textarea{width:100%;background:#060913;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:12px;font:14px Consolas,monospace;outline:none}
+input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(142,157,224,.15)}
+textarea{height:92px;resize:vertical;word-break:break-all}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+button,.filelabel{appearance:none;border:1px solid var(--line);border-radius:9px;background:#10162b;color:var(--text);padding:11px 16px;font-weight:600;font-size:14px;cursor:pointer;transition:.18s}
+button:hover,.filelabel:hover{border-color:var(--accent);box-shadow:0 0 18px rgba(142,157,224,.25)}
+button.primary{background:linear-gradient(180deg,#98a8e6,#6677b8);color:#070a1c;border-color:transparent;font-weight:700;letter-spacing:.04em}
+input[type=file]{display:none}
+.muted{color:var(--mute);font-size:13px}.note{color:#e6cf9a;font-size:13px}
+#status{border:1px solid var(--line);border-radius:9px;padding:12px;font-size:13px;white-space:pre-wrap;line-height:1.5}
+#status.error{border-color:#a34a58;color:var(--err)}#status.success{border-color:#3d7f64;color:var(--ok)}
+ul{margin:8px 0 0;padding-left:18px;color:#aab2d0;font-size:13px;line-height:1.6}
+</style></head><body><div class="wrap">
+<header><img src="assets/logo.png" alt="444"><div><h1>444CFG <b>KEY MANAGER</b></h1><div class="sub">Generador local de licencias · Ed25519 · sin servidor</div></div></header>
+
+<div class="panel"><div class="step">PASO 1 · SOLO LA PRIMERA VEZ</div><h2>Crear el par de claves</h2>
+<p>Se descargan <b>private.key</b> (secreta) y <b>public.key</b>. Copia el contenido de public.key en <code>src-tauri/public.key</code> y recompila la app.</p>
+<div class="actions"><button class="primary" id="create">CREAR CLAVES</button></div>
+<p class="note">private.key nunca debe subirse a GitHub ni incluirse en el EXE. Si la pierdes y generas otra, las licencias anteriores dejan de ser válidas.</p>
+<label>Clave pública</label><textarea id="public" readonly placeholder="Aparecerá aquí al crear o cargar la clave privada"></textarea>
+<div class="actions"><button id="copyPublic">COPIAR CLAVE PÚBLICA</button></div></div>
+
+<div class="panel"><div class="step">PASO 2 · CADA CLIENTE</div><h2>Firmar un HWID</h2>
+<p>Carga tu <b>private.key</b>. Se procesa en este navegador y no se envía a ningún sitio. Poseer esta clave es la autorización para emitir licencias.</p>
+<div class="actions"><label for="keyfile" class="filelabel">SELECCIONAR private.key</label><input type="file" id="keyfile" accept=".key,text/plain"><span id="fileState" class="muted">No cargada</span></div>
+<label>HWID del cliente (32 hex)</label><input type="text" id="hwid" maxlength="32" spellcheck="false" autocomplete="off" placeholder="Pega el HWID mostrado en 444CFG TOOL">
+<div class="actions"><button class="primary" id="sign">GENERAR KEY</button></div>
+<label>KEY generada</label><textarea id="output" readonly placeholder="Aquí aparecerá la licencia"></textarea>
+<div class="actions"><button id="copyKey">COPIAR KEY</button></div></div>
+
+<div class="panel"><h2>Estado</h2><div id="status" aria-live="polite">Listo. Usa Chrome o Edge actualizado.</div></div>
+
+<div class="panel"><h2>Seguridad</h2><ul>
+<li>Formato firmado: <code>444CFG|v1|</code> + HWID (32 hex en mayúsculas). Firma Ed25519 en Base32 sin relleno, en bloques de 8.</li>
+<li>Esta herramienta es un generador offline: no hay cuentas, caducidad ni revocación remota.</li>
+<li>Guarda private.key en un lugar cifrado y con copia de seguridad. Si se filtra, cualquiera puede emitir licencias válidas.</li>
+<li>Si la alojas en una web, pon autenticación real en el servidor; una contraseña en el HTML no protege nada.</li></ul></div>
+</div>
+<script src="license.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id); let secretHex=null;
+function show(t,k=''){const e=$('status');e.textContent=t;e.className=k}
+function download(name,data){const u=URL.createObjectURL(new Blob([data],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1500)}
+$('create').onclick=async()=>{try{
+  if(!confirm('¿Primera vez? Si ya tienes private.key, cancela y cárgala en el paso 2.'))return;
+  const k=await Lic.generate(); secretHex=k.privateHex; $('public').value=k.publicHex;
+  download('private.key',k.privateHex); download('public.key',k.publicHex);
+  $('fileState').textContent='Clave creada y cargada temporalmente';
+  show('Claves generadas. Guarda los dos archivos. Copia public.key a src-tauri/public.key.','success');
+}catch(e){show('Error al crear claves: '+e.message,'error')}};
+$('keyfile').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;
+  const h=(await f.text()).trim(); Lic.fromHex(h,32); secretHex=h;
+  $('public').value=await Lic.publicFromPrivate(h);
+  $('fileState').textContent='Clave privada cargada temporalmente';
+  show('private.key cargada. Comprueba que la clave pública mostrada es la que está en la app.','success');
+}catch(err){secretHex=null;show('private.key inválida: '+err.message,'error')}};
+$('sign').onclick=async()=>{try{
+  if(!secretHex)throw Error('Primero crea tus claves o carga private.key.');
+  $('output').value=await Lic.signLicense(secretHex,$('hwid').value);
+  show('KEY generada para ese HWID. Solo funciona en el equipo con ese HWID y con la clave pública correspondiente.','success');
+}catch(e){show('No se pudo generar la KEY: '+e.message,'error')}};
+async function copy(id){try{await navigator.clipboard.writeText($(id).value);show('Copiado al portapapeles.','success')}catch{$(id).select();show('Seleccionado: pulsa Ctrl+C.')}}
+$('copyPublic').onclick=()=>copy('public');$('copyKey').onclick=()=>copy('output');
+addEventListener('pagehide',()=>{secretHex=null});
+</script></body></html>
