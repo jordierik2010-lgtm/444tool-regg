@@ -1,49 +1,76 @@
-name: Build Windows
+
+name: Build 444CFG TOOL (Windows)
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ["v*"]
 
 jobs:
   build:
     runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: 444CFG-TOOL-CORREGIDO/444CFG-TOOL
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-        with: { workspaces: "src-tauri -> target" }
-      - name: Install frontend dependencies
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "444CFG-TOOL-CORREGIDO/444CFG-TOOL/src-tauri -> target"
+
+      - name: Instalar dependencias
         run: npm install
-      - name: Configure public verification key
+
+      - name: Configurar clave publica
         shell: pwsh
         env:
           CFG444_PUBLIC_KEY_HEX: ${{ secrets.CFG444_PUBLIC_KEY_HEX }}
         run: |
-          $k = $env:CFG444_PUBLIC_KEY_HEX.Trim()
+          $k = $env:CFG444_PUBLIC_KEY_HEX
+          if ([string]::IsNullOrWhiteSpace($k)) {
+            throw "Falta CFG444_PUBLIC_KEY_HEX"
+          }
+          $k = $k.Trim()
           if ($k -notmatch '^[0-9a-fA-F]{64}$') {
-            Write-Error "Create repository secret CFG444_PUBLIC_KEY_HEX with the 64-character public.key from Key Manager (never private.key)."
-            exit 1
+            throw "La clave publica no tiene formato valido"
           }
           Set-Content -Path src-tauri/public.key -Value $k -NoNewline
-      - name: TypeScript check
+
+      - name: Comprobar TypeScript
         run: npm run typecheck
-      - name: License format tests (Key Manager)
+
+      - name: Comprobar licencias
         run: npm run test:keys
-      - name: Rust tests
+
+      - name: Comprobar Rust
         run: cargo test --manifest-path src-tauri/Cargo.toml
-      - name: Build app and installer
+
+      - name: Compilar EXE
         run: npx tauri build
-      - uses: actions/upload-artifact@v4
+
+      - name: Guardar instalador
+        uses: actions/upload-artifact@v4
         with:
           name: 444CFG-TOOL-installer
           if-no-files-found: error
-          path: src-tauri/target/release/bundle/nsis/*.exe
-      - uses: actions/upload-artifact@v4
+          path: 444CFG-TOOL-CORREGIDO/444CFG-TOOL/src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Guardar EXE portable
+        uses: actions/upload-artifact@v4
         with:
           name: 444CFG-TOOL-portable-exe
           if-no-files-found: error
-          path: src-tauri/target/release/cfg444-tool.exe
+          path: 444CFG-TOOL-CORREGIDO/444CFG-TOOL/src-tauri/target/release/cfg444-tool.exe
